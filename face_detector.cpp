@@ -1,0 +1,47 @@
+#include <opencv2/opencv.hpp>
+#include <opencv2/dnn.hpp>
+#include <iostream>
+using namespace cv;
+using namespace std;
+
+int main() {
+    // Load the DNN face detector model (download these files first)
+    String modelFile = "/path/to/res10_300x300_ssd_iter_140000_fp16.caffemodel";
+    String configFile = "/path/to/deploy.prototxt";
+    dnn::Net net = dnn::readNetFromCaffe(configFile, modelFile);
+
+    // Use CUDA if available
+    net.setPreferableBackend(dnn::DNN_BACKEND_CUDA);
+    net.setPreferableTarget(dnn::DNN_TARGET_CUDA);      
+
+    VideoCapture cap(0);
+    if (!cap.isOpened()) {
+        cerr << "Error opening video stream\n";
+        return -1;
+    }
+
+    Mat frame;
+    while (true) {
+        cap >> frame;
+        if (frame.empty())
+            break;
+
+        Mat blob = dnn::blobFromImage(frame, 1.0, Size(300, 300), Scalar(104.0, 177.0, 123.0), false, false);
+        net.setInput(blob);
+        Mat detections = net.forward();
+
+        Mat detectionMat(detections.size[2], detections.size[3], CV_32F, detections.ptr<float>());
+        for (int i = 0; i < detectionMat.rows; i++) {
+            float confidence = detectionMat.at<float>(i, 2);
+            if (confidence > 0.5) {
+                int x1 = static_cast<int>(detectionMat.at<float>(i, 3) * frame.cols);
+                int y1 = static_cast<int>(detectionMat.at<float>(i, 4) * frame.rows);
+                int x2 = static_cast<int>(detectionMat.at<float>(i, 5) * frame.cols);
+                int y2 = static_cast<int>(detectionMat.at<float>(i, 6) * frame.rows);
+                rectangle(frame, Point(x1, y1), Point(x2, y2), Scalar(0, 255, 0), 2);
+            }
+        }
+	cap.release();
+	destroyAllWindows();
+	return 0;
+}
